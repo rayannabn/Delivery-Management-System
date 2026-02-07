@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}Agents - Delivery Management System{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>👷 Delivery Agents</h2>
+    <div id="agents-content">
+        <div class="loading">Loading agents...</div>
+    </div>
+    <div class="actions">
+        <button class="btn" onclick="loadAgents()">Refresh</button>
+        <button class="btn btn-success" onclick="checkInAllAgents()">Check In All</button>
+    </div>
+</div>
+
+<div class="card">
+    <h2>📊 Agent Statistics</h2>
+    <div id="agent-stats">
+        <div class="loading">Loading statistics...</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function loadAgents() {
+    const agentsContent = document.getElementById('agents-content');
+    showLoading(agentsContent);
+    
+    fetch('/api/agents')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                showError(data.error);
+                return;
+            }
+            
+            if (!data.agents || data.agents.length === 0) {
+                agentsContent.innerHTML = '<p>No agents found. Generate test data first.</p>';
+                updateAgentStats(0, 0);
+                return;
+            }
+            
+            let html = `
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Phone</th>
+                            <th>Warehouse</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            data.agents.forEach(agent => {
+                const statusClass = agent.is_checked_in ? 'status-checked-in' : 'status-pending';
+                const statusText = agent.is_checked_in ? 'Checked In' : 'Checked Out';
+                const checkedInTime = agent.checked_in_at ? formatDate(agent.checked_in_at) : 'N/A';
+                
+                html += `
+                    <tr>
+                        <td>${agent.name}</td>
+                        <td>${agent.phone}</td>
+                        <td>Warehouse ${agent.warehouse_id.slice(-6)}</td>
+                        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                        <td>
+                            ${agent.is_checked_in ? 
+                                `<small>Checked in at ${checkedInTime}</small>` : 
+                                `<button class="btn btn-success" onclick="checkInAgent('${agent._id}')">Check In</button>`
+                            }
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            agentsContent.innerHTML = html;
+            
+            updateAgentStats(data.agents);
+        })
+        .catch(error => {
+            showError('Failed to load agents: ' + error.message);
+        });
+}
+
+function updateAgentStats(agents) {
+    const statsContent = document.getElementById('agent-stats');
+    
+    if (agents.length === 0) {
+        statsContent.innerHTML = '<p>No agent data available.</p>';
+        return;
+    }
+    
+    const checkedInCount = agents.filter(agent => agent.is_checked_in).length;
+    const checkedOutCount = agents.length - checkedInCount;
+    
+    statsContent.innerHTML = `
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">${agents.length}</div>
+                <div class="stat-label">Total Agents</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">${checkedInCount}</div>
+                <div class="stat-label">Checked In</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">${checkedOutCount}</div>
+                <div class="stat-label">Checked Out</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">${((checkedInCount / agents.length) * 100).toFixed(1)}%</div>
+                <div class="stat-label">Check-in Rate</div>
+            </div>
+        </div>
+    `;
+}
+
+function checkInAgent(agentId) {
+    fetch(`/check-in/${agentId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            showError(data.error);
+        } else {
+            showSuccess('Agent checked in successfully!');
+            loadAgents();
+        }
+    })
+    .catch(error => {
+        showError('Failed to check in agent: ' + error.message);
+    });
+}
+
+function checkInAllAgents() {
+    if (!confirm('Check in all available agents?')) {
+        return;
+    }
+    
+    // First get all agents, then check them in one by one
+    fetch('/api/agents')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                showError(data.error);
+                return;
+            }
+            
+            const checkedOutAgents = data.agents.filter(agent => !agent.is_checked_in);
+            
+            if (checkedOutAgents.length === 0) {
+                showSuccess('All agents are already checked in!');
+                return;
+            }
+            
+            let checkInPromises = checkedOutAgents.map(agent => 
+                fetch(`/check-in/${agent._id}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                })
+            );
+            
+            Promise.all(checkInPromises)
+                .then(() => {
+                    showSuccess(`Successfully checked in ${checkedOutAgents.length} agents!`);
+                    loadAgents();
+                })
+                .catch(error => {
+                    showError('Failed to check in some agents: ' + error.message);
+                });
+        })
+        .catch(error => {
+            showError('Failed to load agents: ' + error.message);
+        });
+}
+
+// Load agents when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    loadAgents();
+});
+</script>
+{% endblock %}

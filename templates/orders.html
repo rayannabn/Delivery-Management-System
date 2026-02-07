@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block title %}Orders - Delivery Management System{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>📦 Pending Orders</h2>
+    <div id="orders-content">
+        <div class="loading">Loading orders...</div>
+    </div>
+    <div class="actions">
+        <button class="btn" onclick="loadOrders()">Refresh</button>
+        <button class="btn btn-success" onclick="runAllocation()">Run Allocation</button>
+    </div>
+</div>
+
+<div class="card">
+    <h2>📊 Order Statistics</h2>
+    <div id="order-stats">
+        <div class="loading">Loading statistics...</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function loadOrders() {
+    const ordersContent = document.getElementById('orders-content');
+    showLoading(ordersContent);
+    
+    fetch('/api/orders')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                showError(data.error);
+                return;
+            }
+            
+            if (!data.orders || data.orders.length === 0) {
+                ordersContent.innerHTML = '<p>No pending orders found. Generate test data first.</p>';
+                updateOrderStats(0);
+                return;
+            }
+            
+            let html = `
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Order ID</th>
+                            <th>Customer</th>
+                            <th>Phone</th>
+                            <th>Delivery Address</th>
+                            <th>Warehouse</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            data.orders.slice(0, 50).forEach(order => {
+                const statusClass = order.status === 'pending' ? 'status-pending' : 'status-assigned';
+                const statusText = order.status.charAt(0).toUpperCase() + order.status.slice(1);
+                
+                html += `
+                    <tr>
+                        <td><strong>${order.order_id}</strong></td>
+                        <td>${order.customer_name}</td>
+                        <td>${order.customer_phone}</td>
+                        <td>${order.delivery_address}</td>
+                        <td>Warehouse ${order.warehouse_id.slice(-6)}</td>
+                        <td><span class="status-badge ${statusClass}">${statusText}</span></td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            
+            if (data.orders.length > 50) {
+                html += `<p style="margin-top: 10px; color: #666;">Showing 50 of ${data.orders.length} pending orders</p>`;
+            }
+            
+            ordersContent.innerHTML = html;
+            updateOrderStats(data.orders);
+        })
+        .catch(error => {
+            showError('Failed to load orders: ' + error.message);
+        });
+}
+
+function updateOrderStats(orders) {
+    const statsContent = document.getElementById('order-stats');
+    
+    if (orders.length === 0) {
+        statsContent.innerHTML = '<p>No order data available.</p>';
+        return;
+    }
+    
+    // Group orders by warehouse
+    const warehouseCounts = {};
+    orders.forEach(order => {
+        const warehouseId = order.warehouse_id.slice(-6);
+        warehouseCounts[warehouseId] = (warehouseCounts[warehouseId] || 0) + 1;
+    });
+    
+    // Find warehouse with most orders
+    const busiestWarehouse = Object.entries(warehouseCounts)
+        .sort((a, b) => b[1] - a[1])[0];
+    
+    statsContent.innerHTML = `
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-number">${orders.length}</div>
+                <div class="stat-label">Pending Orders</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">${Object.keys(warehouseCounts).length}</div>
+                <div class="stat-label">Warehouses</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">WH-${busiestWarehouse ? busiestWarehouse[0] : 'N/A'}</div>
+                <div class="stat-label">Busiest Warehouse</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number">${busiestWarehouse ? busiestWarehouse[1] : 0}</div>
+                <div class="stat-label">Max Orders</div>
+            </div>
+        </div>
+        <div style="margin-top: 20px;">
+            <h4>Orders by Warehouse:</h4>
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px;">
+                ${Object.entries(warehouseCounts).map(([warehouse, count]) => 
+                    `<div style="background: #f8f9fa; padding: 8px 12px; border-radius: 15px; font-size: 12px;">
+                        WH-${warehouse}: ${count} orders
+                    </div>`
+                ).join('')}
+            </div>
+        </div>
+    `;
+}
+
+function runAllocation() {
+    if (!confirm('Are you sure you want to run the allocation process?')) {
+        return;
+    }
+    
+    fetch('/run-allocation', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showSuccess(`Allocation completed! ${data.total_assigned} orders assigned, ${data.total_deferred} deferred.`);
+            loadOrders();
+        } else {
+            showError('Allocation failed: ' + (data.message || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        showError('Failed to run allocation: ' + error.message);
+    });
+}
+
+// Load orders when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    loadOrders();
+    
+    // Auto-refresh every 60 seconds
+    setInterval(loadOrders, 60000);
+});
+</script>
+{% endblock %}

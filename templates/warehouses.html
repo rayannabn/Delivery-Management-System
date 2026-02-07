@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}Warehouses - Delivery Management System{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>🏢 Warehouses</h2>
+    <div id="warehouses-content">
+        <div class="loading">Loading warehouses...</div>
+    </div>
+    <div class="actions">
+        <button class="btn" onclick="loadWarehouses()">Refresh</button>
+    </div>
+</div>
+
+<div class="card">
+    <h2>📍 Warehouse Locations</h2>
+    <div id="warehouse-map">
+        <div class="loading">Loading warehouse locations...</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function loadWarehouses() {
+    const warehousesContent = document.getElementById('warehouses-content');
+    showLoading(warehousesContent);
+    
+    fetch('/api/warehouses')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                showError(data.error);
+                return;
+            }
+            
+            if (!data.warehouses || data.warehouses.length === 0) {
+                warehousesContent.innerHTML = '<p>No warehouses found. Generate test data first.</p>';
+                updateWarehouseMap([]);
+                return;
+            }
+            
+            let html = `
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>City</th>
+                            <th>Coordinates</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            data.warehouses.forEach(warehouse => {
+                html += `
+                    <tr>
+                        <td><strong>${warehouse.name}</strong></td>
+                        <td>${warehouse.city}</td>
+                        <td>${warehouse.latitude.toFixed(4)}, ${warehouse.longitude.toFixed(4)}</td>
+                        <td>${formatDate(warehouse.created_at)}</td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            warehousesContent.innerHTML = html;
+            
+            updateWarehouseMap(data.warehouses);
+        })
+        .catch(error => {
+            showError('Failed to load warehouses: ' + error.message);
+        });
+}
+
+function updateWarehouseMap(warehouses) {
+    const mapContent = document.getElementById('warehouse-map');
+    
+    if (warehouses.length === 0) {
+        mapContent.innerHTML = '<p>No warehouse locations to display.</p>';
+        return;
+    }
+    
+    // Simple text-based map representation
+    let html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">';
+    
+    warehouses.forEach(warehouse => {
+        html += `
+            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #667eea;">
+                <h4 style="margin: 0 0 10px 0; color: #667eea;">${warehouse.name}</h4>
+                <p style="margin: 5px 0; font-size: 14px;">
+                    <strong>📍 Location:</strong> ${warehouse.latitude.toFixed(4)}, ${warehouse.longitude.toFixed(4)}<br>
+                    <strong>🏙️ City:</strong> ${warehouse.city}<br>
+                    <strong>📅 Created:</strong> ${formatDate(warehouse.created_at)}
+                </p>
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    
+    // Add summary statistics
+    const cities = [...new Set(warehouses.map(w => w.city))];
+    html += `
+        <div style="margin-top: 20px; padding: 15px; background: #e8f4fd; border-radius: 8px;">
+            <h4 style="margin: 0 0 10px 0; color: #0066cc;">📊 Warehouse Summary</h4>
+            <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+                <div><strong>Total Warehouses:</strong> ${warehouses.length}</div>
+                <div><strong>Cities Covered:</strong> ${cities.length}</div>
+                <div><strong>Cities:</strong> ${cities.join(', ')}</div>
+            </div>
+        </div>
+    `;
+    
+    mapContent.innerHTML = html;
+}
+
+// Load warehouses when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    loadWarehouses();
+});
+</script>
+{% endblock %}
