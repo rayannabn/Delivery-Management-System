@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delivery Management System Workflow</title>
+    <!-- Import Mermaid.js -->
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+    </script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f7f6;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 100%;
+            overflow-x: auto;
+        }
+
+        .mermaid {
+            display: flex;
+            justify-content: center;
+        }
+
+        .legend {
+            margin-top: 20px;
+            font-size: 0.9em;
+            color: #666;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Delivery Management System Workflow</h1>
+
+    <div class="container">
+        <div class="mermaid">
+            flowchart TD
+            %% Styles
+            classDef event fill:#f9f,stroke:#333,stroke-width:2px;
+            classDef process fill:#e1f5fe,stroke:#0277bd,stroke-width:2px;
+            classDef decision fill:#fff9c4,stroke:#fbc02d,stroke-width:2px;
+
+            subgraph Morning ["Morning Routine (07:00 AM)"]
+            direction TB
+            StartMorning(("Scheduler Triggers<br />Allocation")):::event
+            FindAgents["Find Checked-in Agents"]:::process
+            GroupAgents["Group Agents by Warehouse"]:::process
+
+            StartMorning --> FindAgents
+            FindAgents --> GroupAgents
+
+            subgraph AllocationProcess ["Allocation Engine"]
+            GroupAgents --> AllocAlgorithm{"Run Allocation<br />Algorithm"}:::decision
+            AllocAlgorithm -->|Optimize| SelectOrders["Select Orders<br />(Nearest Neighbor)"]:::process
+            SelectOrders --> CheckConstraints{"Check Constraints"}:::decision
+
+            CheckConstraints -->|Valid| Assign["Assign Orders"]:::process
+            CheckConstraints -->|Invalid| Adjust["Adjust Order Set"]:::process
+            Adjust --> CheckConstraints
+
+            Assign --> CreateRecords["Create Assignment<br />Records"]:::process
+            CreateRecords --> UpdateStatus["Update Order Status<br />to 'Assigned'"]:::process
+            end
+            end
+
+            subgraph Day ["Daily Operations"]
+            direction TB
+            AgentCheckIn(("Agent Check-in")):::event
+            ReceiveOrders["Agent Receives<br />Assigned Orders"]:::process
+            DeliveryRoute["Follow Optimized<br />Delivery Route"]:::process
+            CompleteDelivery["Complete Deliveries"]:::process
+
+            UpdateStatus -.-> ReceiveOrders
+            AgentCheckIn --> ReceiveOrders
+            ReceiveOrders --> DeliveryRoute
+            DeliveryRoute --> CompleteDelivery
+            end
+
+            subgraph Evening ["Evening Routine (08:00 PM)"]
+            direction TB
+            StartEvening(("Scheduler Triggers<br />Checkout")):::event
+            AutoCheckout["Auto-Checkout<br />All Agents"]:::process
+            PrepareNextDay["System Prepares<br />for Next Day"]:::process
+            DeferOrders["Defer Unassigned<br />Orders"]:::process
+
+            CompleteDelivery -.-> StartEvening
+            StartEvening --> AutoCheckout
+            AutoCheckout --> PrepareNextDay
+            PrepareNextDay --> DeferOrders
+            end
+        </div>
+    </div>
+
+    <div class="legend">
+        <p><strong>Legend:</strong> <span style="color:#d84315">●</span> Events & Triggers | <span
+                style="color:#0277bd">█</span> System Processes | <span style="color:#fbc02d">◆</span> Decisions/Logic
+        </p>
+    </div>
+
+</body>
+
+</html>
